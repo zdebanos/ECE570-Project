@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 
-from solar_milp_model import SolarMILPModel
-from data import power_consumption, solar_summer
+from solar_milp_model.model import SolarMILPModel
+from solar_milp_model.data import power_consumption, solar_summer
 
 def generate_xaxis_labels(time_steps: int, dt: float):
     times_str = []

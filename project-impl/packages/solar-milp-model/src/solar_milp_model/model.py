@@ -59,7 +59,7 @@ class SolarMILPModel:
             raise ValueError("Battery lower bound must be non-positive.")
         if p_bat_bound[1] < 0:
             raise ValueError("Battery upper bound must be non-negative.")
-    
+
         self.time_steps = time_steps
         self.dt = dt
         self.p_load = p_load
@@ -84,7 +84,7 @@ class SolarMILPModel:
             raise ValueError("Solar availability must be an array of size time_steps.")
         if self.initial_battery_capacity < self.p_bat_bound[0]:
             raise ValueError("The author of this program is a lazy retard and forgot to implement the initial battery capacity check. Just use something slightly higher than the lower bound.")
-        
+
         if np.max(self.p_solaravail) > self.p_solar_bound:
             warnings.warn("The maximum value in p_solaravail exceeds p_solar_bound.\n"
                           "Limiting p_solaravail to p_solar_bound.", stacklevel=2)
@@ -122,7 +122,7 @@ class SolarMILPModel:
 
         # Nonequality Vector (b_ub)
         self.bub = np.zeros((2 * ts, 1))
-        
+
         # Equality Matrix (A_eq)
         self.aeq = np.zeros((ts, 5*ts))
         # 1st eq
@@ -154,7 +154,7 @@ class SolarMILPModel:
         self.ub[2*ts:3*ts] = self.p_solaravail.reshape(1, -1).tolist()[0]
         self.ub[3*ts:4*ts] = ts * [self.p_bat_bound[1]]
         self.ub[4*ts:5*ts] = ts * [0.9 * self.battery_capacity]
-    
+
     def _setup_variables_milp(self):
         """
         We define the optimization vector as follows:
@@ -217,7 +217,7 @@ class SolarMILPModel:
         self.bub = np.zeros(6*ts)
         # Handle the last equation with bigM
         self.bub[5*ts:6*ts] = bigM
-        
+
         # Equality Matrix
         self.aeq = np.zeros((ts, 7*ts))
         # 1st eq
