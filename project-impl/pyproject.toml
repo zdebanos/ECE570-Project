@@ -5,6 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "open-meteo>=0.4.0",
+    "openmeteo-requests>=1.7.5",
     "solar-milp-model",
 ]
 
