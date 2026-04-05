@@ -3,7 +3,7 @@ name = "solar-gru"
 version = "0.1.0"
 description = "Solar GRU model for household energy forecasting"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = ["numpy"]
 
 [build-system]
 requires = ["hatchling"]

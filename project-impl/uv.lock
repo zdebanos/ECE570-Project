@@ -737,6 +737,12 @@ wheels = [
 name = "solar-gru"
 version = "0.1.0"
 source = { editable = "packages/solar-gru" }
+dependencies = [
+    { name = "numpy" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "numpy" }]
 
 [[package]]
 name = "solar-milp-model"
