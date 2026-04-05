@@ -2,16 +2,26 @@ import csv
 import glob
 import os
 import numpy as np
+import pandas as pd
+import pvlib
 from typing import List, Tuple
+
+# Budapest, Hungary Solar measurement station coordinates.
+LAT = 47.4291
+LON = 19.1822
 
 CONSECUTIVE_DAYS = 4
 DUMMY = 11235813
 
 class SolarFileData:
-    def __init__(self, timestamps, direct_rad, diffuse_rad):
-        self.timestamps = timestamps
-        self.direct_rad = direct_rad
+    def __init__(self, timestamps, direct_rad, diffuse_rad, global_rad, temperature, humidity, pressure):
+        self.timestamps  = timestamps
+        self.direct_rad  = direct_rad
         self.diffuse_rad = diffuse_rad
+        self.global_rad  = global_rad   # SWD [W/m²], column 3 (index 2)
+        self.temperature = temperature  # T2 [°C], column 27 (index 26)
+        self.humidity    = humidity     # RH [%],  column 28 (index 27)
+        self.pressure    = pressure     # PoPoPoPo [hPa], column 29 (index 28)
 
 class RadiosondeFileData:
     def __init__(self, timestamps, altitude, pressure, temperature, dew_point, wind_speed):
@@ -97,19 +107,29 @@ def _parse_float(s: str) -> float:
 
 def _load_radiation(radiation_path: str) -> SolarFileData:
     timestamps = []
-    direct_values = []
-    diffuse_values = []
+    direct_values, diffuse_values, global_values = [], [], []
+    temperature_values, humidity_values, pressure_values = [], [], []
 
     for parts in _parse_tab_file(radiation_path):
-        if len(parts) < 11:
+        if len(parts) < 29:
             continue
         timestamps.append(parts[0])
+        global_values.append(_parse_float(parts[2]))
         direct_values.append(_parse_float(parts[6]))
         diffuse_values.append(_parse_float(parts[10]))
+        temperature_values.append(_parse_float(parts[26]))
+        humidity_values.append(_parse_float(parts[27]))
+        pressure_values.append(_parse_float(parts[28]))
 
     direct_rad  = np.maximum(np.array(direct_values,  dtype=np.float64), 0)
     diffuse_rad = np.maximum(np.array(diffuse_values, dtype=np.float64), 0)
-    return SolarFileData(timestamps, direct_rad, diffuse_rad)
+    global_rad  = np.maximum(np.array(global_values,  dtype=np.float64), 0)
+    return SolarFileData(
+        timestamps, direct_rad, diffuse_rad, global_rad,
+        np.array(temperature_values, dtype=np.float64),
+        np.array(humidity_values,    dtype=np.float64),
+        np.array(pressure_values,    dtype=np.float64),
+    )
 
 def _load_radiosonde(radiosonde_path: str) -> RadiosondeFileData:
     timestamps = []
@@ -135,7 +155,58 @@ def _load_radiosonde(radiosonde_path: str) -> RadiosondeFileData:
         np.array(wind_speed,   dtype=np.float64),
     )
 
+# Accumulates hourly arrays across chunks until a gap > 1 hour is detected.
+# Tuple of 8 np.ndarray: (timestamps, direct, diffuse, global, temperature, humidity, pressure, zenith)
+_pending_chunk = None
+
+_SAVED_DIR = os.path.join(os.path.dirname(__file__), "dataset-bsrn", "saved")
+
+def _write_chunk(arrays):
+    """Write a finalized tuple of 8 hourly arrays to disk."""
+    ts, direct, diffuse, global_r, temperature, humidity, pressure, zenith = arrays
+
+    existing = glob.glob(os.path.join(_SAVED_DIR, "chunk*.npz"))
+    used_ids = set()
+    for f in existing:
+        base = os.path.splitext(os.path.basename(f))[0]
+        try:
+            used_ids.add(int(base[len("chunk"):]))
+        except ValueError:
+            pass
+    chunk_id = 0
+    while chunk_id in used_ids:
+        chunk_id += 1
+
+    filename = f"chunk{chunk_id}.npz"
+    np.savez(
+        os.path.join(_SAVED_DIR, filename),
+        timestamps=ts,
+        direct_rad=direct,
+        diffuse_rad=diffuse,
+        global_rad=global_r,
+        temperature=temperature,
+        humidity=humidity,
+        pressure=pressure,
+        zenith_angle=zenith,
+    )
+
+    start_date = _minutes_to_date_str(ts[0])
+    end_date   = _minutes_to_date_str(ts[-1])
+    with open(os.path.join(_SAVED_DIR, "dates.txt"), "a", newline="") as f:
+        csv.writer(f).writerow([filename, start_date, end_date])
+
+    print(f"Saved {filename}  [{start_date} → {end_date}]  len={len(ts)}")
+
+def flush_pending_chunk():
+    """Flush any accumulated pending chunk to disk. Call after all files are processed."""
+    global _pending_chunk
+    if _pending_chunk is not None:
+        _write_chunk(_pending_chunk)
+        _pending_chunk = None
+
 def save_postprocess_chunk(radiation: SolarFileData):
+    global _pending_chunk
+
     # Ignore retarded files.
     if len(radiation.timestamps) < 24 * 60 * CONSECUTIVE_DAYS:
         return
@@ -147,9 +218,13 @@ def save_postprocess_chunk(radiation: SolarFileData):
         start += 1
 
     # Build hourly arrays by averaging each 60-minute block
-    hourly_timestamps = []
-    hourly_direct     = []
-    hourly_diffuse    = []
+    hourly_timestamps   = []
+    hourly_direct       = []
+    hourly_diffuse      = []
+    hourly_global       = []
+    hourly_temperature  = []
+    hourly_humidity     = []
+    hourly_pressure     = []
     i = start
     while i + 60 <= n:
         date_str = _minutes_to_date_str(radiation.timestamps[i])
@@ -159,45 +234,43 @@ def save_postprocess_chunk(radiation: SolarFileData):
         hourly_timestamps.append(radiation.timestamps[i])
         hourly_direct.append(np.mean(radiation.direct_rad[i:i + 60]))
         hourly_diffuse.append(np.mean(radiation.diffuse_rad[i:i + 60]))
+        hourly_global.append(np.mean(radiation.global_rad[i:i + 60]))
+        hourly_temperature.append(np.mean(radiation.temperature[i:i + 60]))
+        hourly_humidity.append(np.mean(radiation.humidity[i:i + 60]))
+        hourly_pressure.append(np.mean(radiation.pressure[i:i + 60]))
         i += 60
 
     if len(hourly_timestamps) < 24 * CONSECUTIVE_DAYS:
         return
 
-    hourly_timestamps = np.array(hourly_timestamps, dtype=np.int64)
-    hourly_direct     = np.array(hourly_direct,     dtype=np.float64)
-    hourly_diffuse    = np.array(hourly_diffuse,    dtype=np.float64)
+    new_ts = np.array(hourly_timestamps, dtype=np.int64)
 
-    saved_dir = os.path.join(os.path.dirname(__file__), "dataset-bsrn", "saved")
+    times = pd.to_datetime(new_ts.astype(np.int64) * 60, unit='s', utc=True)
+    solar_pos = pvlib.solarposition.get_solarposition(times, LAT, LON)
+    zenith = solar_pos['zenith'].to_numpy(dtype=np.float64)
 
-    # Find the smallest unused chunk index
-    existing = glob.glob(os.path.join(saved_dir, "chunk*.npz"))
-    used_ids = set()
-    for f in existing:
-        base = os.path.splitext(os.path.basename(f))[0]  # "chunkN"
-        try:
-            used_ids.add(int(base[len("chunk"):]))
-        except ValueError:
-            pass
-    chunk_id = 0
-    while chunk_id in used_ids:
-        chunk_id += 1
-
-    filename = f"chunk{chunk_id}.npz"
-    np.savez(
-        os.path.join(saved_dir, filename),
-        timestamps=hourly_timestamps,
-        direct_rad=hourly_direct,
-        diffuse_rad=hourly_diffuse,
+    new_arr  = (
+        new_ts,
+        np.array(hourly_direct,      dtype=np.float64),
+        np.array(hourly_diffuse,     dtype=np.float64),
+        np.array(hourly_global,      dtype=np.float64),
+        np.array(hourly_temperature, dtype=np.float64),
+        np.array(hourly_humidity,    dtype=np.float64),
+        np.array(hourly_pressure,    dtype=np.float64),
+        zenith,
     )
 
-    start_date = _minutes_to_date_str(hourly_timestamps[0])
-    end_date   = _minutes_to_date_str(hourly_timestamps[-1])
-    dates_path = os.path.join(saved_dir, "dates.txt")
-    with open(dates_path, "a", newline="") as f:
-        csv.writer(f).writerow([filename, start_date, end_date])
+    if _pending_chunk is not None:
+        gap = new_ts[0] - _pending_chunk[0][-1]
+        if gap == 60:
+            # Consecutive — merge into pending
+            _pending_chunk = tuple(np.concatenate([p, n]) for p, n in zip(_pending_chunk, new_arr))
+            return
+        else:
+            # Gap too large — flush pending and start fresh
+            _write_chunk(_pending_chunk)
 
-    print(f"Saved {filename}  [{start_date} → {end_date}]  len={len(hourly_timestamps)}")
+    _pending_chunk = new_arr
 
 def postprocess_file2(radiation: SolarFileData, radiosonde: RadiosondeFileData):
     # Ignore data that have less than CONSECUTIVE_DAYS
@@ -208,21 +281,30 @@ def postprocess_file2(radiation: SolarFileData, radiosonde: RadiosondeFileData):
     segment_start = 0
 
     for i in range(n):
-        if radiation.direct_rad[i] == DUMMY or radiation.diffuse_rad[i] == DUMMY:
+        if (radiation.direct_rad[i] == DUMMY or radiation.diffuse_rad[i] == DUMMY or radiation.global_rad[i] == DUMMY
+                or radiation.temperature[i] == DUMMY or radiation.humidity[i] == DUMMY or radiation.pressure[i] == DUMMY):
             if i > segment_start:
                 seg = SolarFileData(
                     radiation.timestamps[segment_start:i],
                     radiation.direct_rad[segment_start:i],
-                    radiation.diffuse_rad[segment_start:i]
+                    radiation.diffuse_rad[segment_start:i],
+                    radiation.global_rad[segment_start:i],
+                    radiation.temperature[segment_start:i],
+                    radiation.humidity[segment_start:i],
+                    radiation.pressure[segment_start:i],
                 )
                 save_postprocess_chunk(seg)
-            # skip forward until both channels are valid again
+            # skip forward until all channels are valid again
             segment_start = i + 1
         elif i == n - 1:
             seg = SolarFileData(
                 radiation.timestamps[segment_start:n],
                 radiation.direct_rad[segment_start:n],
-                radiation.diffuse_rad[segment_start:n]
+                radiation.diffuse_rad[segment_start:n],
+                radiation.global_rad[segment_start:n],
+                radiation.temperature[segment_start:n],
+                radiation.humidity[segment_start:n],
+                radiation.pressure[segment_start:n],
             )
             save_postprocess_chunk(seg)
 
@@ -241,6 +323,10 @@ def postprocess_file(radiation: SolarFileData, radiosonde: RadiosondeFileData):
                 radiation.timestamps[segment_start:i],
                 radiation.direct_rad[segment_start:i],
                 radiation.diffuse_rad[segment_start:i],
+                radiation.global_rad[segment_start:i],
+                radiation.temperature[segment_start:i],
+                radiation.humidity[segment_start:i],
+                radiation.pressure[segment_start:i],
             )
             postprocess_file2(seg, radiosonde)
             segment_start = i
@@ -250,6 +336,10 @@ def postprocess_file(radiation: SolarFileData, radiosonde: RadiosondeFileData):
         radiation.timestamps[segment_start:n],
         radiation.direct_rad[segment_start:n],
         radiation.diffuse_rad[segment_start:n],
+        radiation.global_rad[segment_start:n],
+        radiation.temperature[segment_start:n],
+        radiation.humidity[segment_start:n],
+        radiation.pressure[segment_start:n],
     )
     postprocess_file2(seg, radiosonde)
 
@@ -280,3 +370,5 @@ if __name__ == "__main__":
 
     for y in ["2020", "2021", "2022", "2023", "2024", "2025"]:
         load_bsrn_year(y)
+
+    flush_pending_chunk()
