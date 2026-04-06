@@ -11,6 +11,8 @@ def check(name: str) -> None:
 
     data = np.load(path_to_file)
     gti = data["global_tilted_irradiance"]
+    temp = data["temperature_2m"]
+    hum  = data["relative_humidity_2m"]
 
     fig, ax = plt.subplots(figsize=(14, 5))
 

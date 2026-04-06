@@ -1,4 +1,6 @@
+import csv
 import os
+import re
 
 import numpy as np
 import openmeteo_requests
@@ -83,32 +85,49 @@ def fetch_location(client: openmeteo_requests.Client, loc: dict) -> None:
     print(f"  Saved {len(df)} rows → {out_path}")
 
 
-def fetch_budapest_wind(client: openmeteo_requests.Client) -> None:
-    lat, lon = BUDAPEST["lat"], BUDAPEST["lon"]
-    print(f"Fetching Budapest wind (lat={lat}, lon={lon}) …")
-    params = {
-        "latitude":   lat,
-        "longitude":  lon,
-        "hourly":     ["wind_speed_10m"],
-        "timezone":   "UTC",
-        "start_date": START_DATE,
-        "end_date":   END_DATE,
-    }
-    responses = client.weather_api("https://archive-api.open-meteo.com/v1/archive", params=params)
-    hourly = responses[0].Hourly()
-    timestamps = pd.date_range(
-        start=pd.Timestamp(hourly.Time(),    unit="s", tz="UTC"),
-        end=  pd.Timestamp(hourly.TimeEnd(), unit="s", tz="UTC"),
-        freq=pd.Timedelta(seconds=hourly.Interval()),
-        inclusive="left",
-    )
-    df = pd.DataFrame({"time": timestamps, "wind_speed_10m": hourly.Variables(0).ValuesAsNumpy()})
-    df = df[~((df["time"].dt.month == 2) & (df["time"].dt.day == 29))]
+def fetch_budapest_wind_chunks(client: openmeteo_requests.Client) -> None:
+    bsrn_saved = os.path.join(os.path.dirname(__file__), "dataset-bsrn", "saved")
+    dates_path = os.path.join(bsrn_saved, "dates.txt")
 
-    minutes = ((df["time"] - EPOCH).dt.total_seconds() / 60).astype(np.int64).to_numpy()
-    out_path = os.path.join(SAVE_DIR, "Budapest.npz")
-    np.savez(out_path, timestamps=minutes, wind_speed_10m=df["wind_speed_10m"].to_numpy(dtype=np.float64))
-    print(f"  Saved {len(df)} rows → {out_path}")
+    with open(dates_path, newline="") as f:
+        rows = list(csv.reader(f))
+
+    lat, lon = BUDAPEST["lat"], BUDAPEST["lon"]
+
+    for row in rows:
+        chunk_file, start_str, end_str = row[0].strip(), row[1].strip(), row[2].strip()
+        chunk_num = int(re.search(r"\d+", chunk_file).group())
+
+        # Load the exact timestamps from the chunk so we match them precisely
+        chunk_ts = np.load(os.path.join(bsrn_saved, chunk_file))["timestamps"]  # minutes since epoch
+        chunk_times = pd.to_datetime(chunk_ts * 60, unit="s", utc=True)
+
+        print(f"Fetching Budapest wind for chunk{chunk_num} ({start_str[:10]} → {end_str[:10]}) …")
+        params = {
+            "latitude":   lat,
+            "longitude":  lon,
+            "hourly":     ["wind_speed_10m"],
+            "timezone":   "UTC",
+            "start_date": start_str[:10],
+            "end_date":   end_str[:10],
+        }
+        responses = client.weather_api("https://archive-api.open-meteo.com/v1/archive", params=params)
+        hourly = responses[0].Hourly()
+        timestamps = pd.date_range(
+            start=pd.Timestamp(hourly.Time(),    unit="s", tz="UTC"),
+            end=  pd.Timestamp(hourly.TimeEnd(), unit="s", tz="UTC"),
+            freq=pd.Timedelta(seconds=hourly.Interval()),
+            inclusive="left",
+        )
+        df = pd.DataFrame({"time": timestamps, "wind_speed_10m": hourly.Variables(0).ValuesAsNumpy()})
+
+        # Keep only rows whose timestamps appear in the chunk
+        df = df[df["time"].isin(chunk_times)].reset_index(drop=True)
+
+        minutes = ((df["time"] - EPOCH).dt.total_seconds() / 60).astype(np.int64).to_numpy()
+        out_path = os.path.join(SAVE_DIR, f"Budapest{chunk_num}.npz")
+        np.savez(out_path, timestamps=minutes, wind_speed_10m=df["wind_speed_10m"].to_numpy(dtype=np.float64))
+        print(f"  Saved {len(df)} rows → {out_path}")
 
 
 def main() -> None:
@@ -116,7 +135,7 @@ def main() -> None:
     client = build_client()
     for loc in LOCATIONS:
         fetch_location(client, loc)
-    fetch_budapest_wind(client)
+    fetch_budapest_wind_chunks(client)
     print("Done.")
 
 

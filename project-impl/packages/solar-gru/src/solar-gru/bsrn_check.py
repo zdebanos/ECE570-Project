@@ -13,10 +13,11 @@ def check(chunk_idx):
     timestamps  = data["timestamps"]
     direct_rad  = data["direct_rad"]
     diffuse_rad = data["diffuse_rad"]
-    zenith      = data["zenith_angle"]
     global_rad  = data["global_rad"]
-
-    radiation_total = diffuse_rad + np.maximum(np.cos(np.radians(zenith)), 0) * direct_rad
+    zenith      = data["zenith_angle"]
+    temp        = data["temperature"]
+    humidity    = data["humidity"]
+    pressure    = data["pressure"]
 
     start_date = _minutes_to_date_str(timestamps[0])
     end_date   = _minutes_to_date_str(timestamps[-1])
@@ -25,8 +26,7 @@ def check(chunk_idx):
 
     #ax.plot(direct_rad,  color="#E05C2A", linewidth=0.9, label="Direct radiation (DIR)")
     #ax.plot(diffuse_rad, color="#2A7BE0", linewidth=0.9, label="Diffuse radiation (DIF)")
-    ax.plot(radiation_total, color="#E05C2A", linewidth=0.9, label="My calc")
-    ax.plot(global_rad, color="#2A7BE0", linewidth=0.9, label="Global")
+    ax.plot(pressure, color="#2A7BE0", linewidth=0.9, label="Global")
 
     ax.set_title(f"Chunk {chunk_idx} — Hourly radiation  [{start_date} → {end_date}]", fontsize=13, fontweight="bold", pad=12)
     ax.set_xlabel("Hour index", fontsize=10)
