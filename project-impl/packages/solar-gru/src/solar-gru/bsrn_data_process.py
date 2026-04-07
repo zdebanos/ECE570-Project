@@ -10,7 +10,7 @@ from typing import List, Tuple
 LAT = 47.4291
 LON = 19.1822
 
-CONSECUTIVE_DAYS = 4
+CONSECUTIVE_DAYS = 10
 DUMMY = 11235813
 
 class SolarFileData:
