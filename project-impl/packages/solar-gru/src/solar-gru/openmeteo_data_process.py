@@ -9,10 +9,14 @@ import requests_cache
 from retry_requests import retry
 
 LOCATIONS = [
-    {"lat": "47.3456389", "lon": "19.0415875", "name": "Szigetszentmiklos", "tilt": 25},
-    {"lat": "47.4058408", "lon": "19.2638489", "name": "Vecses",            "tilt": 27.5},
+    {"lat": "47.3456389", "lon": "19.0415875", "name": "Szigetszentmiklos", "tilt": 30},
+    {"lat": "47.4058408", "lon": "19.2638489", "name": "Vecses",            "tilt": 30},
     {"lat": "47.4910539", "lon": "19.3426831", "name": "Pecel",             "tilt": 30},
-    {"lat": "47.6312217", "lon": "19.1288833", "name": "Dunakezsi",         "tilt": 32.5},
+    {"lat": "47.6312217", "lon": "19.1288833", "name": "Dunakezsi",         "tilt": 30},
+    {"lat": "47.5480608", "lon": "19.2513733", "name": "Kistarcsa",         "tilt": 30},
+    {"lat": "47.6475486", "lon": "19.0228175", "name": "Pomáz",             "tilt": 30},
+    {"lat": "47.4069672", "lon": "18.8299828", "name": "Sóskút",            "tilt": 30},
+    {"lat": "47.3160783", "lon": "18.7905103", "name": "Martonvásár",       "tilt": 30}
 ]
 
 START_DATE = "2020-01-01"
@@ -24,6 +28,8 @@ HOURLY_VARIABLES = [
     "surface_pressure",
     "wind_speed_10m",
     "global_tilted_irradiance",
+    "rain",
+    "cloud_cover",
 ]
 
 BUDAPEST = {"lat": 47.4291, "lon": 19.1822}
@@ -81,6 +87,8 @@ def fetch_location(client: openmeteo_requests.Client, loc: dict) -> None:
         surface_pressure=df["surface_pressure"].to_numpy(dtype=np.float64),
         wind_speed_10m=df["wind_speed_10m"].to_numpy(dtype=np.float64),
         global_tilted_irradiance=df["global_tilted_irradiance"].to_numpy(dtype=np.float64),
+        rain=df["rain"].to_numpy(dtype=np.float64),
+        cloud_cover=df["cloud_cover"].to_numpy(dtype=np.float64)
     )
     print(f"  Saved {len(df)} rows → {out_path}")
 
