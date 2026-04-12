@@ -1,7 +1,7 @@
 [project]
-name = "project-impl"
+name = "solar-energy-planning"
 version = "0.1.0"
-description = "Add your description here"
+description = "Optimal Energy Planning using Solar Forecasted Data"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -12,6 +12,8 @@ dependencies = [
     "requests-cache>=1.0",
     "retry-requests>=2.0",
     "solar-milp-model",
+    "solar-gru",
+    "torch>=2.11.0",
 ]
 
 [tool.uv.workspace]
@@ -19,3 +21,4 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 solar-milp-model = { workspace = true }
+solar-gru = { workspace = true }

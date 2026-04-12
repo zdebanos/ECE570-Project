@@ -5,6 +5,9 @@ description = "Solar GRU model for household energy forecasting"
 requires-python = ">=3.14"
 dependencies = ["numpy", "pandas", "openmeteo-requests", "requests-cache", "retry-requests", "pvlib"]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/solar_gru"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
