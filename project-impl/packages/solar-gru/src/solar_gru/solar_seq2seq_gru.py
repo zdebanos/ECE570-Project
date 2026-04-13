@@ -22,6 +22,8 @@ class SolarSeq2SeqGRU(torch.nn.Module):
         self.set_weights(weights)
     
     def set_weights(self, weights):
+        """Sets the model's weights.
+        """
         self._weights = weights
         if self._weights is None:
             return
@@ -36,8 +38,16 @@ class SolarSeq2SeqGRU(torch.nn.Module):
         max_epoch=100, 
         target_len=_CONSECUTIVE_HOURS_AFTER
     ) -> torch.Tensor:
-        """
-        Seq2seq forward method.
+        """Seq2seq forward method.
+
+        Args:
+            prior:       Encoder data.
+            teacher_seq: Decoder data.
+            device:      Torch device.
+            cur_epoch:   Current training epoch. It's used to turn off the teacher forcing
+                         during the training phase.
+            max_epoch:   Specify the maximum epoch in training.
+            target_len:  The decoder prediction length.
         """
         prior = prior.to(device)
         teacher_seq = teacher_seq.to(teacher_seq)
@@ -91,19 +101,28 @@ class SolarSeq2SeqGRU(torch.nn.Module):
     @torch.inference_mode()
     def forecast(
         self,
-        prior: torch.Tensor,
-        forecast_meteo_data: torch.Tensor, # please use a vector with a size of 8, 5th element can be anything
+        prior: torch.Tensor,               # Use normalized data
+        forecast_meteo_data: torch.Tensor, # Use normalized data
         device: torch.device
     ) -> np.ndarray | None:
+        """This function passes the `prior` data through the encoder,
+        then `forecast_meteo_data` is passed through the decoder, using then
+        previous encoder hidden state.
+
+        Args:
+            prior:               The previous days data (use normalized data).
+            forecast_meteo_data: Two days of additional information (forecasted),
+                                 use normalized data. Use a tensor of size (bs, 8),
+                                 where bs is the batch_size. The 5th element (GTI(i-1))
+                                 is always ignored and therefore be of any value.
+            device:              Torch device.
+
+        Returns:
+            The two days of predicted GTI(i) data.
+        """
         if self._weights is None:
             # No weights are present, throw an error
             return None
         self.eval()
         with torch.no_grad():
-            raise Exception("ff")
             return self(prior, forecast_meteo_data, device).cpu().numpy()
-        
-
-
-        
-
