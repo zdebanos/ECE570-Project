@@ -1,0 +1,15 @@
+[project]
+name = "model-to-solar-plant"
+version = "0.1.0"
+description = "A simple prediction mapper to power plant output interface."
+requires-python = ">=3.14"
+dependencies = [
+    "numpy>=2.4.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/model_to_solar_plant"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
