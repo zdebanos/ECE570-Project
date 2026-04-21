@@ -125,4 +125,4 @@ class SolarSeq2SeqGRU(torch.nn.Module):
             return None
         self.eval()
         with torch.no_grad():
-            return self(prior, forecast_meteo_data, device).cpu().numpy()
+            return self(prior, forecast_meteo_data, device).cpu().numpy()[0]
