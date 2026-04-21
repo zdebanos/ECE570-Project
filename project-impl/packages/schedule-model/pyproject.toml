@@ -1,7 +1,7 @@
 [project]
-name = "solar-milp-model"
+name = "schedule-model"
 version = "0.1.0"
-description = "Solar MILP optimization model for household energy scheduling"
+description = "Solar Schedule Model Interface (includes base MILP model for the time being)"
 requires-python = ">=3.14"
 dependencies = [
     "matplotlib>=3.10.8",
@@ -9,8 +9,8 @@ dependencies = [
     "scipy>=1.17.1",
 ]
 
-[project.scripts]
-solar-milp = "solar_milp_model.main:main"
+[tool.hatch.build.targets.wheel]
+packages = ["src/schedule_model"]
 
 [build-system]
 requires = ["hatchling"]

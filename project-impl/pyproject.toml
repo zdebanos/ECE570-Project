@@ -11,14 +11,19 @@ dependencies = [
     "pvlib>=0.15.0",
     "requests-cache>=1.0",
     "retry-requests>=2.0",
-    "solar-milp-model",
+    "schedule-model",
     "solar-gru",
+    "model-to-solar-plant",
+    "solar-mpc",
     "torch>=2.11.0",
+    "rich>=15.0.0",
 ]
 
 [tool.uv.workspace]
 members = ["packages/*"]
 
 [tool.uv.sources]
-solar-milp-model = { workspace = true }
+schedule-model = { workspace = true }
 solar-gru = { workspace = true }
+model-to-solar-plant = { workspace = true }
+solar-mpc = { workspace = true }

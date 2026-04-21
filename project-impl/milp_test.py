@@ -2,8 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 
-from solar_milp_model.model import SolarMILPModel
-from solar_milp_model.data import power_consumption, solar_summer
+from schedule_model.solar_milp_model import SolarMILPModel, SolarMilpModelParameters
+from schedule_model.data import power_consumption, solar_summer
+from schedule_model.schedule_model_base import ScheduleModel, ScheduleModelParameters
 
 def generate_xaxis_labels(time_steps: int, dt: float):
     times_str = []
@@ -19,9 +20,7 @@ def generate_xaxis_labels(time_steps: int, dt: float):
 
 def main():
     battery_capacity = 10 # kWh
-    model = SolarMILPModel(
-        time_steps=24,
-        dt=1,
+    model_params = SolarMilpModelParameters(
         p_load=power_consumption,
         p_solaravail=solar_summer,
         eff_solar=0.95,
@@ -35,10 +34,12 @@ def main():
         battery_capacity=battery_capacity,
         initial_battery_capacity=2
     )
+
+    model = SolarMILPModel(time_steps=24, dt=1, params=model_params)
     result: scipy.optimize.OptimizeResult = model.solve()
     if result.success:
         print(f"Energy cost without solar: {np.sum(solar_summer)} * "
-              f"{model.grid_price_buy:.2f} = {np.sum(solar_summer) * model.grid_price_buy:.2f} $")
+              f"{model_params.grid_price_buy:.2f} = {np.sum(solar_summer) * model_params.grid_price_buy:.2f} $")
         print(f"Energy cost with optimization: {result.fun:.2f} $")
         ts = model.time_steps
         dt = model.dt
@@ -47,7 +48,7 @@ def main():
         P_solar = x[2 * ts : 3 * ts]
         P_bat = x[3 * ts : 4 * ts]
         BC = x[5 * ts : 6 * ts]
-        BC = np.hstack((model.initial_battery_capacity, BC))
+        BC = np.hstack((model_params.initial_battery_capacity, BC))
 
         # Time labels for x-axis: "0.00", "1.00", ... or "0.00", "0.30", ... for 30-min steps
         times_labels = generate_xaxis_labels(ts, dt)
