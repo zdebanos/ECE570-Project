@@ -118,7 +118,7 @@ class SolarSeq2SeqGRU(torch.nn.Module):
             device:              Torch device.
 
         Returns:
-            The two days of predicted GTI(i) data.
+            The two days of predicted GTI(i) data [W].
         """
         if self._weights is None:
             # No weights are present, throw an error
