@@ -33,9 +33,10 @@ class SolarMilpModelParameters(ScheduleModelParameters):
             grid_price_buy (float): Price for buying electricity from the grid ($/kWh).
             grid_price_sell (float): Price received for selling electricity to grid ($/kWh).
             p_grid_bound (tuple): Min/max grid power at each timestep (kW).
-            p_solar_max (float): Max allowed solar power usage (kW).
-            p_solar_min (tuple): Min/max allowed solar power usage (kW).
+            p_solar_bound (float): Max solar inverter power at each timestep (kW).
+            p_bat_bound (tuple): Allowed ranges of battery charges.
             battery_capacity (float): Usable battery capacity (kWh).
+            initial_battery_capacity (float): Battery capacity at first timestamp.
         """
         if grid_price_buy <= 0 or grid_price_sell <= 0:
             raise ValueError("Grid prices must be positive.")
