@@ -17,6 +17,7 @@ dependencies = [
     "solar-mpc",
     "torch>=2.11.0",
     "rich>=15.0.0",
+    "scipy>=1.17.1",
 ]
 
 [tool.uv.workspace]
