@@ -380,6 +380,11 @@ if __name__ == "__main__":
     weights = torch.load(weights_path, map_location="cpu")
     model = SolarSeq2SeqGRU(weights=weights)
     _ok_print("Weights loaded and model initialized!")
+    # Load the means and sigmas of the dataset variables
+    means_sigmas = np.load(str(files("solar_gru") / "openmeteo_means_sigmas.npz"))
+    means = means_sigmas["means"]
+    sigmas = means_sigmas["sigmas"]
+    _ok_print("Dataset stats loaded!")
 
     try:
         lat = float(input("Enter latitude in float (degrees): "))
@@ -404,16 +409,29 @@ if __name__ == "__main__":
     except:
         sys.exit(1)
 
-    # Load the means and sigmas of the dataset variables
-    means_sigmas = np.load(str(files("solar_gru") / "openmeteo_means_sigmas.npz"))
-    means = means_sigmas["means"]
-    sigmas = means_sigmas["sigmas"]
     prediction, ground_truth = \
         do_predict(model, lat, lon, date, hour, means, sigmas)
     # Map the predicted output to real power
     mapper_creator: Model2SolarPlantMapperCreator = SolarPowerMapperCreator()
     mapper = mapper_creator.create_mapper()
     solar_farm_power = mapper.map(np.zeros(len(prediction)), prediction)
+    # Plot predicted vs ground truth before MILP stage
+    fig, ax = plt.subplots(figsize=(8, 5))
+    t = np.arange(48)
+    ax.step(t, ground_truth, color="#aecbfa", linewidth=2, label="OpenMeteo Truth")
+    ax.step(t, prediction,   color="#f4a7a3", linewidth=2, label="Prediction", linestyle='--')
+    ax.set_title(f"Date: {date}, 48 hours", fontsize=14, fontweight="bold")
+    ax.set_xlabel("Hour", fontsize=14)
+    ax.set_ylabel("GTI (W/m²)", fontsize=14)
+    ax.tick_params(axis="both", labelsize=13)
+    ax.legend(fontsize=13)
+    ax.grid(True, which="major", alpha=0.4)
+    ax.grid(True, which="minor", alpha=0.2)
+    ax.minorticks_on()
+    plt.tight_layout()
+    plt.savefig("gti_predicted_ground.png", dpi=300)
+    plt.show()
+
     # Now we have everything ready, construct the milp model and plan optimal battery charging
 
     print()
