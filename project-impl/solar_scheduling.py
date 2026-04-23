@@ -355,21 +355,21 @@ def plot_scheduled_data(
     # Time labels for x-axis: "0.00", "1.00", etc.
     times_labels = _generate_xaxis_labels(ts, dt)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(14,6))
     ax.step(range(ts), P_grid, label="Grid Power", where="post", linewidth=2.4, color='blue')
     ax.step(range(ts), P_solar, label="Solar Used", where="post", linewidth=2, color='orange', linestyle='--')
     ax.step(range(ts), P_bat, label="Battery Power", where="post", linewidth=1.7, color='green', linestyle=':')
     ax.step(range(ts), p_load, label="Household Power", where="post", linewidth=2, color='red', linestyle='-.')
 
-    ax.set_title("Optimal Household Power Flows for 24h", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Time of Day (h)", fontsize=12)
-    ax.set_ylabel("Power / Energy (kW, kWh)", fontsize=12)
-    ax.tick_params(axis='both', labelsize=10)
+    ax.set_xlabel("Time of Day (h)", fontsize=14)
+    ax.set_ylabel("Power / Energy (kW, kWh)", fontsize=14)
+    ax.tick_params(axis='both', labelsize=11)
     ax.set_xticks(range(ts))
     ax.set_xticklabels(times_labels, rotation=90)
     ax.legend()
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
+    plt.savefig("./milp_forecast.png", dpi=300)
     plt.show()
 
 if __name__ == "__main__":
