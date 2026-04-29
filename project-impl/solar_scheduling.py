@@ -341,39 +341,49 @@ def _generate_xaxis_labels(time_steps: int, dt: float):
     return times_str
 
 def plot_scheduled_data(
-    result: scipy.optimize.result,
+    result: scipy.optimize.OptimizeResult,
     ts: int,
     dt: float,
     params: SolarMilpModelParameters
 ) -> None:
     x = result.x
-    P_grid = x[ts : 2 * ts]
-    P_solar = x[2 * ts : 3 * ts]
-    P_bat = x[3 * ts : 4 * ts]
-    BC = x[5 * ts : 6 * ts]
-    BC = np.hstack((params.initial_battery_capacity, BC))
-    # Time labels for x-axis: "0.00", "1.00", etc.
+    P_grid  = x[0:ts]
+    P_solar = x[ts:2*ts]
+    P_bat   = x[2*ts:3*ts]
     times_labels = _generate_xaxis_labels(ts, dt)
+    t = range(ts)
 
-    fig, ax = plt.subplots(figsize=(14,6))
-    ax.step(range(ts), P_grid, label="Grid Power", where="post", linewidth=2.4, color='blue')
-    ax.step(range(ts), P_solar, label="Solar Used", where="post", linewidth=2, color='orange', linestyle='--')
-    ax.step(range(ts), P_bat, label="Battery Power", where="post", linewidth=1.7, color='green', linestyle=':')
-    ax.step(range(ts), p_load, label="Household Power", where="post", linewidth=2, color='red', linestyle='-.')
+    fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
 
-    ax.set_xlabel("Time of Day (h)", fontsize=14)
-    ax.set_ylabel("Power / Energy (kW, kWh)", fontsize=14)
-    ax.tick_params(axis='both', labelsize=11)
-    ax.set_xticks(range(ts))
-    ax.set_xticklabels(times_labels, rotation=90)
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    # Upper: non-optimized reference signals
+    ax_top.step(t, params.p_solaravail, label="Solar Available", where="post",
+                linewidth=2, color="#e67e22")
+    ax_top.step(t, params.p_load, label="Household Demand", where="post",
+                linewidth=2, color="#c0392b", linestyle="--")
+    ax_top.set_ylabel("Power (kW)", fontsize=14)
+    ax_top.tick_params(axis="both", labelsize=11)
+    ax_top.legend(fontsize=13)
+    ax_top.grid(True, alpha=0.3)
+
+    # Lower: optimised schedule
+    ax_bot.step(t, P_solar, label="Used Solar",   where="post", linewidth=2,   color="#f39c12")
+    ax_bot.step(t, P_grid,  label="Used Grid",    where="post", linewidth=2,   color="#2980b9", linestyle="--")
+    ax_bot.step(t, P_bat,   label="Battery Power", where="post", linewidth=1.7, color="#27ae60", linestyle=":")
+    ax_bot.set_xlabel("Time of Day (h)", fontsize=14)
+    ax_bot.set_ylabel("Power (kW)", fontsize=14)
+    ax_bot.tick_params(axis="both", labelsize=11)
+    ax_bot.set_xticks(range(ts))
+    ax_bot.set_xticklabels(times_labels, rotation=90)
+    ax_bot.legend(fontsize=13)
+    ax_bot.grid(True, alpha=0.3)
+
     plt.tight_layout()
     plt.savefig("./milp_forecast.png", dpi=300)
     plt.show()
 
 if __name__ == "__main__":
     rich.print("[cyan]Welcome to my ECE57000 Project![/cyan]")
+    _warn_print("For ECE57000 TAs: please checkout 9f2572865306103cab619ca6aada69f77894aa07, this is a modified version")
     _warn_print("Note the model is trained on weather data that is close to Budapest!")
     _warn_print("Use weather data that are from a nearby location!")
     weights_path: str = str(files("solar_gru") / "solar_gru_weights.pth")
@@ -437,6 +447,10 @@ if __name__ == "__main__":
     print()
     _ok_print("Model prediction successful, scheduling now!")
 
+    energy_prices1 = (pd.read_excel("CZ_23_04_2026.xlsx", header=None, usecols="C", skiprows=23, nrows=24)).iloc[:, 0].to_numpy(dtype=float)
+    energy_prices2 = (pd.read_excel("CZ_24_04_2026.xlsx", header=None, usecols="C", skiprows=23, nrows=24)).iloc[:, 0].to_numpy(dtype=float)
+    energy_prices = np.hstack((energy_prices1, energy_prices2)) / 1000 # to kWh
+
     """
     The inverter efficiency is 95%, as well the charging
     and discharging of the battery.
@@ -450,11 +464,10 @@ if __name__ == "__main__":
     milp_scheduler_params = SolarMilpModelParameters(
         p_load=p_load,
         p_solaravail=solar_farm_power,
+        grid_prices=energy_prices,
         eff_solar=0.95,
         eff_battery_chg=0.95,
         eff_battery_dis=0.95,
-        grid_price_buy=0.20,
-        grid_price_sell=0.05,
         p_grid_bound=(-24, 24),
         p_solar_bound=7,
         p_bat_bound=(-battery_capacity/5, battery_capacity/5),
